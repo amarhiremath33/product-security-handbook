@@ -1,271 +1,564 @@
-# Linux Commands – Day 1
+# Linux Commands
 
-## Objective
-
-Learn the fundamental Linux commands required to navigate the filesystem and understand the current user and working directory.
-
----
-
-# Commands Covered
-
-* `pwd`
-* `cd`
-* `whoami`
-* Understanding `/`
-* Understanding `~`
-* Understanding `$HOME`
+> **Module:** 01 - Linux
+> **Chapter:** 03 - Linux Commands
 
 ---
 
-# 1. `pwd` (Print Working Directory)
+# Learning Objectives
 
-## Purpose
+After completing this chapter, you will be able to:
 
-Displays the absolute path of the current working directory.
+* Navigate the Linux filesystem confidently.
+* Display files and directories.
+* Create, copy, move, and delete files.
+* View file contents.
+* Understand absolute and relative paths.
+* Use essential Linux commands used in daily administration and Product Security.
 
-## Syntax
+---
+
+# Why This Matters
+
+Linux is primarily operated through the command line.
+
+Whether you are:
+
+* Product Security Engineer
+* DevSecOps Engineer
+* Cloud Engineer
+* Linux Administrator
+* SRE
+
+you will use Linux commands every day.
+
+---
+
+# Command Categories
+
+This chapter covers:
+
+* Navigation
+* File Operations
+* Directory Operations
+* Viewing Files
+* Searching
+* Help Commands
+
+---
+
+# 1. pwd (Print Working Directory)
+
+Displays the current directory.
 
 ```bash
 pwd
 ```
-
-## Example
-
-```bash
-root@dev:/etc# pwd
-/etc
-```
-
-## Explanation
-
-The command prints the full path of your current location in the Linux filesystem.
-
----
-
-# 2. `whoami`
-
-## Purpose
-
-Displays the currently logged-in user.
-
-## Syntax
-
-```bash
-whoami
-```
-
-## Example
-
-```bash
-root@dev:/# whoami
-```
-
-Output
-
-```text
-root
-```
-
-## Use Case
-
-Useful when working with multiple users or using `sudo` to verify which account is executing commands.
-
----
-
-# 3. `cd` (Change Directory)
-
-## Purpose
-
-Changes the current working directory.
-
-## Syntax
-
-```bash
-cd <directory>
-```
-
-## Examples
-
-Go to the root user's home directory:
-
-```bash
-cd ~
-```
-
-Go to the filesystem root:
-
-```bash
-cd /
-```
-
-Go back to your home directory:
-
-```bash
-cd $HOME
-```
-
----
-
-# Understanding `/`
-
-The slash (`/`) represents the **root directory**.
-
-Every file and directory in Linux starts from this location.
 
 Example
-
-```text
-/
-├── bin
-├── etc
-├── home
-├── root
-├── usr
-└── var
-```
-
-Example command
-
-```bash
-cd /
-pwd
-```
-
-Output
-
-```text
-/
-```
-
----
-
-# Understanding `~`
-
-The tilde (`~`) is a shortcut to the **current user's home directory**.
-
-Examples
-
-For user `amar`
 
 ```text
 /home/amar
 ```
 
-For user `root`
+---
+
+# 2. whoami
+
+Displays the currently logged-in user.
+
+```bash
+whoami
+```
+
+Example
 
 ```text
-/root
+amar
+```
+
+---
+
+# 3. hostname
+
+Displays the system hostname.
+
+```bash
+hostname
+```
+
+Example
+
+```text
+ubuntu-dev
+```
+
+---
+
+# 4. cd (Change Directory)
+
+Move between directories.
+
+Go to root
+
+```bash
+cd /
+```
+
+Go to home
+
+```bash
+cd ~
+```
+
+Go to previous directory
+
+```bash
+cd -
+```
+
+Go up one level
+
+```bash
+cd ..
+```
+
+---
+
+# Absolute vs Relative Paths
+
+Absolute path
+
+```text
+/etc/ssh/sshd_config
+```
+
+Relative path
+
+```text
+Documents/project
 ```
 
 Example
 
 ```bash
-cd ~
-pwd
+cd /etc
 ```
 
-Output (root user)
+Example
 
-```text
-/root
+```bash
+cd ../home
 ```
 
 ---
 
-# Understanding `$HOME`
+# 5. ls
 
-`$HOME` is an environment variable that stores the path of the current user's home directory.
+Lists directory contents.
 
-Example
+```bash
+ls
+```
+
+Long listing
+
+```bash
+ls -l
+```
+
+Hidden files
+
+```bash
+ls -a
+```
+
+Human-readable sizes
+
+```bash
+ls -lh
+```
+
+Recursive
+
+```bash
+ls -R
+```
+
+---
+
+# 6. mkdir
+
+Creates directories.
+
+```bash
+mkdir test
+```
+
+Nested directories
+
+```bash
+mkdir -p project/docs/images
+```
+
+---
+
+# 7. touch
+
+Creates an empty file.
+
+```bash
+touch notes.txt
+```
+
+---
+
+# 8. cp
+
+Copies files.
+
+```bash
+cp file1.txt file2.txt
+```
+
+Copy directory
+
+```bash
+cp -r project backup
+```
+
+---
+
+# 9. mv
+
+Moves or renames files.
+
+Rename
+
+```bash
+mv old.txt new.txt
+```
+
+Move
+
+```bash
+mv file.txt /tmp/
+```
+
+---
+
+# 10. rm
+
+Delete files.
+
+```bash
+rm file.txt
+```
+
+Delete directory
+
+```bash
+rm -r project
+```
+
+Force delete
+
+```bash
+rm -rf project
+```
+
+⚠ **Use `rm -rf` carefully.**
+
+---
+
+# 11. cat
+
+Displays file contents.
+
+```bash
+cat file.txt
+```
+
+---
+
+# 12. less
+
+View large files one page at a time.
+
+```bash
+less /var/log/syslog
+```
+
+Exit
+
+```text
+q
+```
+
+---
+
+# 13. head
+
+Displays first 10 lines.
+
+```bash
+head file.txt
+```
+
+First 20 lines
+
+```bash
+head -20 file.txt
+```
+
+---
+
+# 14. tail
+
+Displays last 10 lines.
+
+```bash
+tail file.txt
+```
+
+Live log monitoring
+
+```bash
+tail -f /var/log/syslog
+```
+
+---
+
+# 15. echo
+
+Print text or variables.
+
+```bash
+echo Hello
+```
+
+Display home directory
 
 ```bash
 echo $HOME
 ```
 
-Output
+---
 
-```text
-/root
-```
+# 16. find
 
-Example
+Search for files.
 
 ```bash
-cd $HOME
+find /home -name "*.txt"
+```
+
+Find directories
+
+```bash
+find . -type d
 ```
 
 ---
 
-# Difference Between `/`, `~`, and `$HOME`
+# 17. which
 
-| Symbol  | Meaning                                            | Example (root) |
-| ------- | -------------------------------------------------- | -------------- |
-| `/`     | Root of the Linux filesystem                       | `/`            |
-| `~`     | Current user's home directory shortcut             | `/root`        |
-| `$HOME` | Environment variable containing the home directory | `/root`        |
+Find executable location.
+
+```bash
+which curl
+```
+
+Example
+
+```text
+/usr/bin/curl
+```
+
+---
+
+# 18. man
+
+Displays manual pages.
+
+```bash
+man ls
+```
+
+Search
+
+```bash
+/permission
+```
+
+Quit
+
+```text
+q
+```
+
+---
+
+# 19. clear
+
+Clears the terminal.
+
+```bash
+clear
+```
+
+Shortcut
+
+```text
+Ctrl + L
+```
+
+---
+
+# Useful Keyboard Shortcuts
+
+| Shortcut | Purpose                |
+| -------- | ---------------------- |
+| Ctrl + C | Stop running command   |
+| Ctrl + L | Clear screen           |
+| Ctrl + R | Search command history |
+| Tab      | Auto-complete          |
+| ↑        | Previous command       |
+| ↓        | Next command           |
 
 ---
 
 # Practical Example
 
+Create a project.
+
 ```bash
-cd /
+mkdir linux-lab
+
+cd linux-lab
+
+touch notes.txt
+
+ls
+
 pwd
+
+cat notes.txt
 ```
 
-Output
+---
+
+# Real Production Example
+
+Suppose an application is failing.
+
+Typical investigation:
 
 ```text
-/
+SSH
+
+↓
+
+cd /var/log
+
+↓
+
+ls
+
+↓
+
+tail -f application.log
+
+↓
+
+cat config
+
+↓
+
+find log files
 ```
 
-```bash
-cd ~
-pwd
-```
-
-Output
-
-```text
-/root
-```
-
-```bash
-echo $HOME
-```
-
-Output
-
-```text
-/root
-```
+Almost every Linux troubleshooting session begins with these commands.
 
 ---
 
 # Product Security Perspective
 
-Understanding the current working directory and user context is important because many security tools, scripts, and incident response procedures depend on executing commands from the correct location and with the correct privileges.
+A Product Security Engineer uses these commands to:
+
+* Investigate logs
+* Locate configuration files
+* Review application files
+* Search for indicators of compromise
+* Verify installed binaries
+* Inspect directories
+* Collect forensic evidence
+
+Example
+
+```bash
+find / -name "*.pem"
+```
+
+Locate certificate files.
+
+Example
+
+```bash
+tail -f /var/log/auth.log
+```
+
+Monitor authentication logs.
 
 ---
 
 # Hands-on Lab
 
-1. Open your Linux terminal (WSL or Linux VM).
-2. Run:
+Run the following commands:
 
 ```bash
 pwd
+
 whoami
-echo $HOME
-cd /
-pwd
-cd ~
-pwd
-cd $HOME
-pwd
+
+hostname
+
+mkdir linux-practice
+
+cd linux-practice
+
+touch demo.txt
+
+ls -lah
+
+echo "Linux Practice" > demo.txt
+
+cat demo.txt
+
+cp demo.txt backup.txt
+
+mv backup.txt renamed.txt
+
+find . -name "*.txt"
+
+which curl
+
+head demo.txt
+
+tail demo.txt
 ```
 
-3. Observe the output after each command.
+---
+
+# Common Mistakes
+
+❌ Running `rm -rf` without checking the path.
+
+❌ Using relative paths from the wrong directory.
+
+❌ Editing system files without backup.
+
+❌ Forgetting to check permissions.
 
 ---
 
@@ -273,45 +566,55 @@ pwd
 
 ### What does `pwd` do?
 
-It prints the absolute path of the current working directory.
+Displays the current working directory.
 
 ---
 
-### What is the difference between `~` and `$HOME`?
+### Difference between `cp` and `mv`?
 
-* `~` is a shell shortcut.
-* `$HOME` is an environment variable storing the home directory path.
-
----
-
-### What is the root directory?
-
-The top-most directory in the Linux filesystem, represented by `/`.
+* `cp` copies files.
+* `mv` moves or renames files.
 
 ---
 
-### What command displays the current user?
+### Difference between `cat`, `less`, and `tail`?
 
-```bash
-whoami
-```
+* `cat` displays the whole file.
+* `less` displays one page at a time.
+* `tail` displays the last lines and can monitor live logs.
 
 ---
 
-# Summary
+### What does `which` do?
 
-In this chapter, you learned:
+Displays the path of an executable.
 
-* How to identify your current location using `pwd`
-* How to identify the current user with `whoami`
-* How to navigate using `cd`
-* The difference between `/`, `~`, and `$HOME`
-* Why these concepts are important in Linux administration and Product Security
+---
+
+### Why use `find`?
+
+To search for files or directories based on name, type, permissions, or other criteria.
+
+---
+
+### Why is `tail -f` useful?
+
+It allows real-time monitoring of log files as new entries are written.
+
+---
+
+# Key Takeaways
+
+* Linux command-line skills are essential for system administration and Product Security.
+* Learn navigation before advanced commands.
+* Always verify your current directory before modifying files.
+* Use `find`, `tail`, and `less` frequently during troubleshooting.
+* Be cautious with destructive commands like `rm -rf`.
 
 ---
 
 # References
 
-* Linux `pwd` manual (`man pwd`)
-* Linux `cd` shell builtin documentation
-* Linux `whoami` manual (`man whoami`)
+* Linux man pages (`man ls`, `man cp`, `man mv`, `man find`)
+* https://man7.org/linux/man-pages/
+* GNU Core Utilities Documentation
