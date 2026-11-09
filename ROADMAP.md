@@ -1,6 +1,7 @@
 # 🗺️ Product Security Handbook Roadmap
 
-This roadmap tracks the progress of the handbook.
+This roadmap tracks the progress of the handbook's **content**.
+Your personal learning plan is in [PRODUCT-SECURITY-STUDY-ROADMAP.md](PRODUCT-SECURITY-STUDY-ROADMAP.md) — tick items there as **you** complete the labs.
 
 ---
 
@@ -8,8 +9,8 @@ This roadmap tracks the progress of the handbook.
 
 - [x] Repository Structure
 - [x] Professional README
-- [ ] Development Environment
-- [ ] Linux Module
+- [x] Development Environment
+- [x] Linux Module
 
 ---
 
@@ -17,41 +18,41 @@ This roadmap tracks the progress of the handbook.
 
 ## Git
 
-- [ ] Install Git
-- [ ] Configure Git
-- [ ] Git Basics
+- [x] Install Git
+- [x] Configure Git
+- [x] Git Basics
 
 ## GitHub
 
-- [ ] GitHub SSH Authentication
-- [ ] Repository Best Practices
+- [x] GitHub SSH Authentication
+- [x] Repository Best Practices
 
 ## Development Tools
 
 - [ ] Install PowerShell
-- [ ] Install VS Code
-- [ ] Useful VS Code Extensions
+- [x] Install VS Code
+- [x] Useful VS Code Extensions
 - [ ] Markdown Basics
 
 ---
 
 # Milestone 3 – Linux
 
-- [ ] Linux Introduction
-- [ ] Linux Architecture
-- [ ] Linux Filesystem
-- [ ] Linux Commands
-- [ ] Users & Groups
-- [ ] Permissions
-- [ ] Processes
-- [ ] Networking
-- [ ] Services
-- [ ] Package Management
-- [ ] Logs
-- [ ] Storage
-- [ ] Shell Scripting
-- [ ] Security Hardening
-- [ ] Linux Interview Questions
+- [x] Linux Introduction
+- [x] Linux Architecture
+- [x] Linux Filesystem
+- [x] Linux Commands
+- [x] Users & Groups
+- [x] Permissions
+- [x] Processes
+- [x] Networking
+- [x] Services
+- [x] Package Management
+- [x] Logs
+- [x] Storage
+- [x] Shell Scripting
+- [x] Security Hardening
+- [x] Linux Interview Questions
 
 ---
 

@@ -29,6 +29,22 @@ The goal is to provide a practical and interview-focused handbook with theory, l
 
 ---
 
+## 🚀 Start Here
+
+1. **Set up a lab** for Windows, Linux or macOS → [labs/README.md](labs/README.md)
+2. **Set up Git and GitHub with SSH** → [00-Development-Environment](00-Development-Environment/05-GitHub-SSH-Authentication.md)
+3. **Learn Linux from basic to advanced** → [01-Linux](01-Linux/README.md)
+4. **Keep a cheat sheet open** → [cheatsheets/linux-cheatsheet.md](cheatsheets/linux-cheatsheet.md)
+
+| Module | Status |
+|---|---|
+| [00 — Development Environment](00-Development-Environment/README.md) | ✅ 5 chapters |
+| [01 — Linux](01-Linux/README.md) | ✅ 13 chapters with labs |
+| 02 — Networking | 📝 Planned |
+| 03 — HTTP & HTTPS | 📝 Planned |
+
+---
+
 # 📚 Learning Roadmap
 
 ## 00. Development Environment
@@ -42,21 +58,21 @@ The goal is to provide a practical and interview-focused handbook with theory, l
 
 ---
 
-## 01. Linux
+## [01. Linux](01-Linux/README.md)
 
-- Linux Introduction
-- Filesystem
-- Commands
-- Users & Groups
-- Permissions
-- Processes
-- Networking
-- Services
-- Package Management
-- Logs
-- Storage
-- Shell Scripting
-- Security Hardening
+- [Linux Introduction](01-Linux/01-Linux-Introduction.md)
+- [Filesystem](01-Linux/02-Linux-Filesystem.md)
+- [Commands](01-Linux/03-Linux-Commands.md)
+- [Users, Groups & Permissions](01-Linux/04-Users-Groups-Permissions.md)
+- [Processes](01-Linux/05-Processes.md)
+- [Networking](01-Linux/06-Linux-Networking.md)
+- [systemd & Services](01-Linux/07-Systemd-and-Services.md)
+- [Package Management](01-Linux/08-Package-Management.md)
+- [Logs](01-Linux/09-Logs.md)
+- [Storage](01-Linux/10-Storage.md)
+- [Shell Scripting](01-Linux/11-Shell-Scripting.md)
+- [Security Hardening](01-Linux/12-Linux-Security-Hardening.md)
+- [Interview Questions](01-Linux/13-Linux-Interview-Questions.md)
 
 ---
 
@@ -103,21 +119,17 @@ The goal is to provide a practical and interview-focused handbook with theory, l
 # 💻 Repository Structure
 
 ```text
-00-Development-Environment/
-
-01-Linux/
-
-02-Networking/
-
-03-HTTP-HTTPS/
-
-...
-
-assets/
-
-labs/
-
-cheatsheets/
+00-Development-Environment/   Git, GitHub, SSH, VS Code
+01-Linux/                     13 chapters, basic → advanced, each with a lab
+02-Networking/                (planned)
+03-HTTP-HTTPS/                (planned)
+labs/                         How to run labs on Windows/Linux/macOS, KVM home lab, lab scripts
+  linux/scripts/              e.g. linux-security-audit.sh
+cheatsheets/                  Quick references
+projects/                     Portfolio projects (hardening report, Ansible role, threat model…)
+templates/                    Lab notes template
+docs/                         Index of supporting documents
+.github/                      CI checks (ShellCheck, link check) and Dependabot
 ```
 
 ---

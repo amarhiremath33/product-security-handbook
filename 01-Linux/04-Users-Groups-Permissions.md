@@ -1,647 +1,580 @@
-# Users, Groups & Permissions
+# 04 — Users, Groups & Permissions
 
-> **Module:** 01 - Linux
-> **Chapter:** 04 - Users, Groups & Permissions
-
----
-
-# Learning Objectives
-
-After completing this chapter, you will be able to:
-
-* Understand Linux users and groups.
-* Differentiate between root, normal, and system users.
-* Understand file ownership.
-* Read and modify Linux file permissions.
-* Use `chmod`, `chown`, `chgrp`, `umask`, and `id`.
-* Understand SUID, SGID, and Sticky Bit.
-* Apply the Principle of Least Privilege.
-* Explain Linux permissions from a Product Security perspective.
+> **Module:** 01 – Linux · **Level:** 🟢 Basic → 🔴 Advanced · **Time:** ~3 hours
+> **Lab environment:** WSL2 or VM (Docker works, but you're root there) — see [labs/README.md](../labs/README.md)
 
 ---
 
-# Why This Matters
+## Objectives
 
-Linux is a **multi-user operating system**.
+After this chapter you will be able to:
 
-Every process runs as a user and every file belongs to a user and a group. Proper permissions help protect systems from unauthorized access and accidental modification.
-
-Weak permissions are a common cause of security incidents.
+- Explain users, groups, UIDs and GIDs, and read `/etc/passwd`, `/etc/shadow`, `/etc/group`.
+- Create, modify, lock and delete users and groups.
+- Configure `sudo` safely.
+- Read and set permissions in symbolic and numeric form — on files **and** directories.
+- Explain `umask`, SUID, SGID, sticky bit, ACLs, capabilities and immutable files.
+- Audit a system for dangerous permissions and privilege-escalation paths.
 
 ---
 
-# Linux Users
+## Why This Matters
 
-A **user** represents an identity that can log in to the system or run processes.
+Linux is a **multi-user** system. Every process runs **as a user**, and every file is **owned by a user and a group**. The kernel checks these on every file access.
 
-## Types of Users
+Most Linux privilege-escalation attacks come down to a permission mistake: a writable script run by root, a SUID binary, a loose `sudo` rule, a readable private key.
 
-### Root User
+---
 
-* Username: `root`
-* User ID (UID): `0`
-* Full administrative privileges
-
-Example:
+## Users
 
 ```bash
-whoami
+whoami                 # your username
+id                     # uid, gid, groups
+id bob                 # another user
+who                    # who is logged in
+w                      # who is logged in and what they're doing
+last | head            # login history
 ```
 
-Output
+### Types of accounts
+
+| Type | UID range (Debian/Ubuntu) | Example | Can log in? |
+|---|---|---|---|
+| root | `0` | `root` | Yes (but SSH login should be disabled) |
+| System / service | `1–999` | `www-data`, `sshd`, `systemd-network` | No — shell is `/usr/sbin/nologin` |
+| Normal (human) | `1000+` | `amar` | Yes |
+| nobody | `65534` | `nobody` | No — owns nothing, used for least privilege |
+
+The kernel only cares about the **number**. A user named `admin` with UID 0 *is* root.
+
+### `/etc/passwd` — account list (world-readable)
 
 ```text
-root
+amar:x:1000:1000:Amar,,,:/home/amar:/bin/bash
+ │   │  │    │     │         │          │
+ │   │  │    │     │         │          └── login shell
+ │   │  │    │     │         └── home directory
+ │   │  │    │     └── comment (GECOS: full name)
+ │   │  │    └── primary GID
+ │   │  └── UID
+ │   └── 'x' = password is in /etc/shadow
+ └── username
+```
+
+### `/etc/shadow` — password hashes (protected)
+
+```text
+amar:$y$j9T$Yl...$Kd...:20400:0:99999:7:::
+ │    │                  │    │   │   │
+ │    │                  │    │   │   └── warn days before expiry
+ │    │                  │    │   └── max days between changes
+ │    │                  │    └── min days between changes
+ │    │                  └── last change (days since 1970-01-01)
+ │    └── hash: $y$ = yescrypt (Ubuntu 22.04+), $6$ = SHA-512, '!' or '*' = locked/no password
+ └── username
+```
+
+Permissions: `-rw-r----- root shadow` (640) on Debian/Ubuntu; `----------` (000) on RHEL. Only root (and the `shadow` group) can read it.
+
+### `/etc/group`
+
+```text
+sudo:x:27:amar,bob
+ │   │ │   └── members (secondary)
+ │   │ └── GID
+ │   └── group password (unused)
+ └── group name
 ```
 
 ---
 
-### Normal Users
+## Groups
 
-Created for people using the system.
-
-Examples:
-
-```text
-amar
-john
-alice
-```
-
-Home directories are usually located under:
-
-```text
-/home
-```
-
----
-
-### System Users
-
-Used by services and applications.
-
-Examples:
-
-```text
-www-data
-mysql
-postgres
-nginx
-```
-
-These accounts normally cannot log in interactively.
-
----
-
-# Understanding User IDs (UID)
-
-Every Linux user has a unique User ID.
-
-Example:
+- **Primary group**: assigned to files you create. Usually a private group with your name (`amar:amar`).
+- **Secondary groups**: extra memberships that grant access (`sudo`, `docker`, `adm`).
 
 ```bash
-id
+groups               # your groups
+getent group sudo    # members of sudo (works with LDAP too)
 ```
 
-Output
+Important groups on Ubuntu:
 
-```text
-uid=1000(amar)
-gid=1000(amar)
-groups=1000(amar),27(sudo)
-```
+| Group | Grants | Risk |
+|---|---|---|
+| `sudo` (`wheel` on RHEL) | Run any command as root via `sudo` | Equivalent to root |
+| `adm` | Read most logs in `/var/log` | Sees sensitive info |
+| `docker` | Talk to the Docker daemon | **Equivalent to root** (can mount `/` into a container) |
+| `lxd` | Manage LXD containers | Equivalent to root |
+| `shadow` | Read `/etc/shadow` | Can crack all passwords |
 
 ---
+
+## Managing Users and Groups ⚠️
+
+```bash
+# Create
+sudo adduser bob                          # interactive, creates home, Debian/Ubuntu
+sudo useradd -m -s /bin/bash -c "Bob" bob # low-level, scriptable, any distro
+sudo passwd bob                           # set password
+
+# Modify
+sudo usermod -aG sudo bob                 # add to group (-a = append — without it, other groups are REMOVED)
+sudo gpasswd -d bob sudo                  # remove from a group
+sudo usermod -s /usr/sbin/nologin bob     # disable shell login
+sudo usermod -L bob                       # lock password  (-U unlocks)
+sudo usermod -e 2026-12-31 bob            # account expires on a date
+sudo chage -l bob                         # password aging info
+sudo chage -M 90 -W 7 bob                 # max 90 days, warn 7 days before
 
 # Groups
+sudo groupadd devs
+sudo usermod -aG devs bob
+newgrp devs                               # use new group without logging out
 
-A **group** is a collection of users.
+# Delete
+sudo deluser --remove-home bob            # Debian/Ubuntu
+sudo userdel -r bob                       # any distro
 
-Instead of assigning permissions individually, Linux allows permissions to be granted to groups.
+# Service account for an app (no login, no home)
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin myapp
+```
 
-Example:
+Group changes take effect at the **next login** — run `newgrp` or log out and in.
+
+---
+
+## sudo
+
+`sudo` lets permitted users run commands as root (or another user), and **logs** every use.
+
+```bash
+sudo -l                    # what am I allowed to run?
+sudo -i                    # root login shell (use sparingly)
+sudo -u www-data whoami    # run as another user
+sudo visudo                # edit /etc/sudoers safely (syntax check before saving)
+sudo visudo -f /etc/sudoers.d/deploy    # better: separate drop-in file
+```
+
+### sudoers syntax
 
 ```text
-Developers
-├── Amar
-├── John
-└── Alice
+ user/%group   HOST = (RUN_AS)   [NOPASSWD:] COMMANDS
+ amar          ALL  = (ALL:ALL)  ALL                     ← full root
+ %sudo         ALL  = (ALL:ALL)  ALL                     ← anyone in sudo group
+ deploy        ALL  = (root)     NOPASSWD: /usr/bin/systemctl restart myapp
 ```
+
+The last line is **least privilege**: `deploy` can restart one service and nothing else.
+
+> 🔐 **Dangerous sudo rules.** Allowing any of these effectively grants full root, because they can spawn a shell or write any file: `vim`, `less`, `find`, `awk`, `python`, `tar`, `cp`, `tee`, `bash`, `env`, wildcards like `/usr/bin/*`, or editable scripts. See [GTFOBins](https://gtfobins.github.io/) for hundreds of examples.
+>
+> Example: `sudo find . -exec /bin/sh \; -quit` → root shell.
 
 ---
 
-# Primary Group
+## Permissions
 
-Every user has one primary group.
-
-Example:
+### Reading `ls -l`
 
 ```text
-amar
+-rwxr-x---  1  amar  devs  4096  Nov 9 10:00  deploy.sh
+│└┬┘└┬┘└┬┘     │     │
+│ │  │  │      │     └── group owner
+│ │  │  │      └── user owner
+│ │  │  └── others:  ---  no access
+│ │  └── group:  r-x  read + execute
+│ └── user:  rwx  read + write + execute
+└── type: - file, d directory, l link
 ```
 
-Primary Group:
+### What r, w, x mean — files vs directories
+
+| | On a **file** | On a **directory** |
+|---|---|---|
+| `r` (4) | Read contents | List names (`ls`) |
+| `w` (2) | Modify contents | Create, delete, rename entries inside (**even files you don't own!**) |
+| `x` (1) | Run as a program | Enter it (`cd`) and access files inside by name |
+
+Key consequences:
+
+- Deleting a file needs `w` on the **directory**, not on the file.
+- A directory with `x` but no `r` lets you open files if you know their names, but not list them.
+- To read `/home/amar/notes.txt`, you need `x` on `/`, `/home`, `/home/amar` **and** `r` on the file.
+
+### Numeric (octal) notation
 
 ```text
-amar
+ r=4  w=2  x=1        user  group  others
+                       rwx   r-x    ---
+                       4+2+1 4+0+1  0+0+0
+                        7     5      0    →  chmod 750
 ```
 
----
+| Mode | Symbolic | Typical use |
+|---|---|---|
+| `755` | `rwxr-xr-x` | Programs, scripts, public directories |
+| `750` | `rwxr-x---` | Directory shared with a group only |
+| `700` | `rwx------` | `~/.ssh`, private directories |
+| `644` | `rw-r--r--` | Normal files, public configs |
+| `640` | `rw-r-----` | Configs with secrets readable by an app group |
+| `600` | `rw-------` | Private keys, `authorized_keys`, secret files |
+| `440` | `r--r-----` | `/etc/sudoers` |
+| `777` | `rwxrwxrwx` | ❌ Almost never correct |
 
-# Secondary Groups
-
-A user may belong to multiple groups.
-
-Example:
+### chmod, chown, chgrp
 
 ```bash
-groups
+chmod 640 app.conf                 # numeric
+chmod u+x script.sh                # symbolic: add execute for user
+chmod go-w file                    # remove write from group and others
+chmod u=rw,g=r,o= file             # set exactly (= 640)
+chmod -R g+rX shared/              # capital X: execute only on directories (and already-executable files)
+sudo chown bob file                # change owner
+sudo chown bob:devs file           # owner and group
+sudo chown -R www-data:www-data /var/www/site
+sudo chgrp devs file               # group only
+stat -c '%a %U:%G %n' file         # show octal mode and owners
 ```
 
-Output
+> Avoid `chmod -R 755` on a tree of files: it makes every file executable. Use `find` instead:
+> ```bash
+> find site/ -type d -exec chmod 755 {} +
+> find site/ -type f -exec chmod 644 {} +
+> ```
+
+### umask — default permissions 🟡
+
+New files start at `666`, new directories at `777`, and the **umask** removes bits.
 
 ```text
-amar sudo docker
+ umask 022:   files 666 - 022 = 644 (rw-r--r--)    dirs 777 - 022 = 755
+ umask 027:   files 666 - 027 = 640 (rw-r-----)    dirs 777 - 027 = 750
+ umask 077:   files 600 (rw-------)                 dirs 700
+```
+
+```bash
+umask              # e.g. 0002 (Ubuntu users) or 0022
+umask -S           # symbolic: u=rwx,g=rwx,o=rx
+umask 027          # stricter for this shell session
+```
+
+Services can set their own: `UMask=0027` in a systemd unit.
+
+---
+
+## Special Permissions 🔴
+
+| Bit | Octal | On a file | On a directory | Shown as |
+|---|:-:|---|---|---|
+| **SUID** | `4000` | Runs as the **file's owner** (often root) | — (ignored) | `s` in user x: `-rwsr-xr-x` |
+| **SGID** | `2000` | Runs with the file's **group** | New files inherit the **directory's group** | `s` in group x: `drwxrwsr-x` |
+| **Sticky** | `1000` | — | Only the file's owner (or root) can delete/rename it | `t` in others x: `drwxrwxrwt` |
+
+A capital `S` or `T` means the special bit is set but the underlying `x` is not.
+
+```bash
+ls -l /usr/bin/passwd          # -rwsr-xr-x root  → SUID: lets users change their own shadow entry
+ls -ld /tmp                    # drwxrwxrwt       → sticky
+chmod u+s file  / chmod 4755 file    # set SUID ⚠️
+chmod g+s dir   / chmod 2775 dir     # set SGID on a shared folder
+chmod +t dir    / chmod 1777 dir     # set sticky
+```
+
+> 🔐 **SUID root binaries are prime privilege-escalation targets.** If a SUID-root program can run commands, read arbitrary files, or has a bug, any user can become root. Know your baseline and investigate anything new:
+> ```bash
+> find / -xdev -perm -4000 -type f 2>/dev/null
+> ```
+
+### Shared team folder with SGID
+
+```bash
+sudo groupadd devs
+sudo mkdir /srv/project
+sudo chown root:devs /srv/project
+sudo chmod 2770 /srv/project      # rwxrws---: group members can work, files get group 'devs'
 ```
 
 ---
 
-# File Ownership
+## ACLs — Per-User Exceptions 🔴
 
-Every file has:
-
-* Owner
-* Group
-* Others
-
-Example:
+Normal permissions allow one owner and one group. **Access Control Lists** add more.
 
 ```bash
-ls -l
+setfacl -m u:bob:r report.txt        # give bob read access
+setfacl -m g:auditors:rx /var/log/app
+setfacl -d -m g:devs:rwx /srv/project   # default ACL: inherited by new files
+getfacl report.txt                    # show ACLs
+setfacl -x u:bob report.txt           # remove bob's entry
+setfacl -b report.txt                 # remove all ACLs
 ```
 
-Output
+A `+` at the end of the mode in `ls -l` (`-rw-r-----+`) means ACLs are present. Easy to miss during audits.
+
+---
+
+## Capabilities — Splitting Root 🔴
+
+Instead of all-or-nothing root, Linux divides root's powers into ~40 **capabilities**.
+
+| Capability | Allows |
+|---|---|
+| `CAP_NET_BIND_SERVICE` | Bind to ports < 1024 |
+| `CAP_NET_RAW` | Raw sockets (`ping`, packet sniffing) |
+| `CAP_NET_ADMIN` | Change network config, firewall |
+| `CAP_SYS_ADMIN` | Huge set (mount, etc.) — "the new root" |
+| `CAP_DAC_OVERRIDE` | Ignore file permissions |
+| `CAP_SETUID` | Change UID — instant root |
+
+```bash
+getcap -r / 2>/dev/null                        # binaries with file capabilities
+sudo setcap cap_net_bind_service=+ep ./webapp  # let a non-root app use port 80
+grep Cap /proc/$$/status                        # capabilities of your shell (hex)
+capsh --decode=000001ffffffffff                 # decode the hex
+```
+
+> 🔐 `cap_setuid` or `cap_dac_override` on an interpreter like `python3` = root for everyone. Containers drop most capabilities by default; `--privileged` gives them all back.
+
+---
+
+## Immutable and Append-Only Files 🔴
+
+```bash
+sudo chattr +i /etc/resolv.conf     # immutable: even root can't modify or delete it
+sudo chattr +a /var/log/app.log     # append-only: can add lines, not change or delete
+lsattr /etc/resolv.conf             # show attributes
+sudo chattr -i /etc/resolv.conf     # remove
+```
+
+Used to protect critical configs and logs. Attackers sometimes use `+i` to stop admins removing their backdoor — check `lsattr` when a file "can't be deleted even as root".
+
+---
+
+## In Production
 
 ```text
--rw-r--r-- 1 amar developers notes.txt
+ nginx (runs as www-data)
+   ├── reads    /etc/nginx/*         root:root 644      ← www-data can read, not change config
+   ├── serves   /var/www/site        root:www-data 750  ← read-only for the app
+   ├── writes   /var/www/site/uploads www-data 750      ← only place it can write
+   └── TLS key  /etc/ssl/private/site.key  root:ssl-cert 640
 ```
 
-Meaning:
+Principles:
 
-* Owner → amar
-* Group → developers
-* Others → Everyone else
-
----
-
-# Linux Permission Model
-
-Example:
-
-```text
--rwxr-xr--
-```
-
-Breakdown:
-
-```text
-- rwx r-x r--
-  │   │   │
-  │   │   └── Others
-  │   └────── Group
-  └────────── Owner
-```
+1. Apps run as a dedicated, non-login, non-root user.
+2. The app **cannot write** to its own code or config — so a compromised app can't plant a backdoor that survives restart.
+3. Writable directories are explicit and minimal (uploads, cache).
+4. Secrets readable only by the user/group that needs them.
 
 ---
 
-# Permission Types
-
-## Read (r)
-
-Allows reading a file.
-
-Value:
-
-```text
-4
-```
-
----
-
-## Write (w)
-
-Allows modifying a file.
-
-Value:
-
-```text
-2
-```
-
----
-
-## Execute (x)
-
-Allows executing a file or entering a directory.
-
-Value:
-
-```text
-1
-```
-
----
-
-# Numeric Permissions
-
-| Number | Permission |
-| -----: | ---------- |
-|      7 | rwx        |
-|      6 | rw-        |
-|      5 | r-x        |
-|      4 | r--        |
-|      3 | -wx        |
-|      2 | -w-        |
-|      1 | --x        |
-|      0 | ---        |
-
----
-
-# Common Permission Values
-
-| Permission | Meaning                                        |
-| ---------- | ---------------------------------------------- |
-| 777        | Everyone has full access (avoid in production) |
-| 755        | Owner full, others read & execute              |
-| 750        | Owner full, group read & execute               |
-| 700        | Owner only                                     |
-| 644        | Common for text/config files                   |
-| 600        | Private files (SSH keys)                       |
-
----
-
-# chmod
-
-Changes permissions.
-
-Example:
+## Product Security Perspective — Audit Checklist
 
 ```bash
-chmod 755 script.sh
+# 1. Accounts with UID 0 (should be only root)
+awk -F: '$3 == 0 {print $1}' /etc/passwd
+
+# 2. Accounts with empty passwords
+sudo awk -F: '$2 == "" {print $1}' /etc/shadow
+
+# 3. Who has sudo, and any NOPASSWD rules
+getent group sudo wheel
+sudo grep -rE 'NOPASSWD|ALL' /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v '^#'
+
+# 4. Members of root-equivalent groups
+getent group docker lxd
+
+# 5. SUID / SGID binaries
+find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec ls -l {} + 2>/dev/null
+
+# 6. File capabilities
+getcap -r / 2>/dev/null
+
+# 7. World-writable files and directories without sticky bit
+find / -xdev -type f -perm -0002 2>/dev/null
+find / -xdev -type d -perm -0002 ! -perm -1000 2>/dev/null
+
+# 8. Sensitive file permissions
+ls -l /etc/passwd /etc/shadow /etc/group /etc/sudoers
+ls -la ~/.ssh
+
+# 9. Files with no owner
+find / -xdev \( -nouser -o -nogroup \) 2>/dev/null
 ```
 
-Symbolic mode:
+Automated version: [`labs/linux/scripts/linux-security-audit.sh`](../labs/linux/scripts/linux-security-audit.sh).
+
+---
+
+## Hands-on Lab ⚠️ (VM or WSL)
+
+### Part 1 — Users and groups 🟢
 
 ```bash
-chmod u+x script.sh
+sudo adduser --gecos "" alice          # set a password when asked
+sudo adduser --gecos "" bob
+sudo groupadd devs
+sudo usermod -aG devs alice
+id alice; id bob
+grep -E '^(alice|bob)' /etc/passwd
+sudo grep -E '^(alice|bob)' /etc/shadow   # note the hash type
 ```
 
-Remove write permission:
+### Part 2 — File vs directory permissions 🟡
 
 ```bash
-chmod g-w file.txt
+sudo mkdir -p /srv/lab && sudo chown alice:devs /srv/lab && sudo chmod 770 /srv/lab
+sudo -u alice touch /srv/lab/alice.txt
+sudo -u bob ls /srv/lab                 # Permission denied — bob is not in devs
+sudo usermod -aG devs bob
+sudo -u bob ls /srv/lab                 # works (sudo -u starts a fresh session)
+sudo -u bob rm /srv/lab/alice.txt       # works! w on the DIRECTORY allows deleting
 ```
 
----
-
-# chown
-
-Changes file ownership.
-
-Example:
+Now protect files with the sticky bit:
 
 ```bash
-sudo chown amar file.txt
+sudo -u alice touch /srv/lab/alice2.txt
+sudo chmod 1770 /srv/lab
+sudo -u bob rm /srv/lab/alice2.txt      # Operation not permitted
 ```
 
-Owner and group:
+### Part 3 — SGID shared folder 🟡
 
 ```bash
-sudo chown amar:developers file.txt
+sudo chmod 2770 /srv/lab
+sudo -u bob touch /srv/lab/bob.txt
+ls -l /srv/lab                          # group is 'devs', not 'bob'
 ```
 
----
-
-# chgrp
-
-Changes group ownership.
-
-Example:
+### Part 4 — umask 🟡
 
 ```bash
-sudo chgrp developers project.txt
+cd ~/labs && umask
+touch a.txt && mkdir a.dir && ls -ld a.txt a.dir
+umask 077
+touch b.txt && mkdir b.dir && ls -ld b.txt b.dir
+umask 0002     # restore Ubuntu default
 ```
 
----
-
-# umask
-
-Defines default permissions for newly created files.
-
-Check current value:
+### Part 5 — Privilege escalation via sudo (understand the risk) 🔴
 
 ```bash
-umask
+echo 'bob ALL=(root) NOPASSWD: /usr/bin/find' | sudo tee /etc/sudoers.d/lab-bob
+sudo chmod 440 /etc/sudoers.d/lab-bob
+sudo -u bob sudo -l
+sudo -u bob sudo find /etc/hostname -exec whoami \;     # prints: root
+sudo rm /etc/sudoers.d/lab-bob                          # clean up!
 ```
 
-Example output:
+Lesson: "only `find`" was actually "everything".
 
-```text
-0022
-```
-
----
-
-# Special Permissions
-
-## SUID
-
-Runs a program with the owner's privileges.
-
-Example:
+### Part 6 — SUID and capabilities 🔴
 
 ```bash
-ls -l /usr/bin/passwd
+find / -xdev -perm -4000 -type f 2>/dev/null | tee ~/labs/suid-baseline.txt
+getcap -r / 2>/dev/null
 ```
 
-Output:
+Save the baseline. In chapter 12 you'll compare against it.
 
-```text
--rwsr-xr-x
-```
-
-Notice the `s`.
-
----
-
-## SGID
-
-Files inherit the directory's group.
-
-Useful for shared project directories.
-
----
-
-## Sticky Bit
-
-Commonly used on:
-
-```text
-/tmp
-```
-
-Example:
-
-```text
-drwxrwxrwt
-```
-
-Only the owner can delete their own files.
-
----
-
-# Important System Files
-
-## /etc/passwd
-
-Contains user account information.
-
-Example:
-
-```text
-amar:x:1000:1000::/home/amar:/bin/bash
-```
-
----
-
-## /etc/shadow
-
-Contains password hashes.
-
-Permissions:
-
-```text
--r-------- root root
-```
-
-Only root can access it.
-
----
-
-# Principle of Least Privilege
-
-Users should have **only the permissions required** to perform their tasks.
-
-Benefits:
-
-* Reduced attack surface
-* Better security
-* Lower risk of accidental changes
-
----
-
-# Practical Examples
-
-View current user:
+### Part 7 — ACLs and immutable files 🔴
 
 ```bash
-whoami
+sudo apt install -y acl
+echo "secret" > ~/labs/report.txt && chmod 600 ~/labs/report.txt
+setfacl -m u:bob:r ~/labs/report.txt
+chmod o+x ~ ~/labs     # bob needs x on the path
+getfacl ~/labs/report.txt; ls -l ~/labs/report.txt   # note the '+'
+sudo -u bob cat ~/labs/report.txt
+setfacl -b ~/labs/report.txt; chmod o-x ~ ~/labs
+
+sudo chattr +i ~/labs/report.txt
+sudo rm ~/labs/report.txt            # fails, even as root
+lsattr ~/labs/report.txt
+sudo chattr -i ~/labs/report.txt
 ```
 
-Display user information:
+### Clean up
 
 ```bash
-id
+sudo deluser --remove-home alice; sudo deluser --remove-home bob
+sudo groupdel devs; sudo rm -rf /srv/lab
 ```
 
-Display group membership:
+**Questions**
 
-```bash
-groups
-```
-
-View file permissions:
-
-```bash
-ls -l
-```
-
-Change permissions:
-
-```bash
-chmod 644 notes.txt
-```
-
-Change owner:
-
-```bash
-sudo chown amar notes.txt
-```
+1. Why could bob delete alice's file in Part 2 without owning it?
+2. What did the sticky bit change?
+3. Why is `NOPASSWD: /usr/bin/find` as dangerous as `NOPASSWD: ALL`?
+4. How would you spot an ACL during an audit?
 
 ---
 
-# In Real Production
+## Common Mistakes
 
-Example:
-
-```text
-Application
-        │
-        ▼
-Configuration → /etc
-        │
-Logs → /var/log
-        │
-Application User → www-data
-```
-
-The application should run as a **non-root** service account with only the permissions it requires.
+- `chmod 777` "to make it work" — fix ownership instead.
+- `usermod -G` without `-a` — silently removes the user from all other groups (including `sudo`).
+- Editing `/etc/sudoers` directly instead of with `visudo` — a typo can lock everyone out of sudo.
+- Adding developers to the `docker` group without realising it equals root.
+- Running applications as root "temporarily".
+- `chmod -R 755` on files — makes every file executable.
+- Forgetting directory permissions: a `600` file in a world-writable directory can still be deleted and replaced.
+- SSH keys with loose permissions — `ssh` refuses to use a private key readable by others.
 
 ---
 
-# Product Security Perspective
+## Interview Questions
 
-A Product Security Engineer frequently checks:
+**1. What's the difference between `/etc/passwd` and `/etc/shadow`?**
+`/etc/passwd` holds account info and is world-readable. `/etc/shadow` holds password hashes and aging data and is readable only by root (and the `shadow` group on Debian/Ubuntu).
 
-* World-writable files
-* Incorrect ownership
-* SUID binaries
-* Sensitive file permissions
-* SSH private key permissions
-* Least privilege compliance
+**2. Explain `chmod 750`.**
+Owner rwx (7), group r-x (5), others nothing (0).
 
-Example:
+**3. What does `x` mean on a directory?**
+Permission to enter it and access entries by name. Without it you can't `cd` in or open files inside, even if they're readable.
 
-```bash
-find / -perm -4000 2>/dev/null
-```
+**4. Can a user delete a file they don't own?**
+Yes, if they have `w` and `x` on the directory — unless the directory has the sticky bit.
 
-Find SUID binaries.
+**5. What are SUID, SGID and the sticky bit?**
+SUID: an executable runs as its owner. SGID: runs as its group; on directories, new files inherit the directory's group. Sticky bit: on directories, only a file's owner can delete it (e.g. `/tmp`).
 
-Find world-writable files:
+**6. What is umask? What does `027` produce?**
+A mask removing permission bits from new files/dirs. `027` → files `640`, directories `750`.
 
-```bash
-find / -type f -perm -002 2>/dev/null
-```
+**7. Why is membership in the `docker` group dangerous?**
+The Docker daemon runs as root; a member can run `docker run -v /:/host -it ubuntu chroot /host` and get a root shell on the host.
 
----
+**8. 🔐 How would you look for privilege-escalation paths on a Linux host?**
+Check `sudo -l`, SUID/SGID binaries, file capabilities, writable files run by root (cron jobs, systemd units, scripts in PATH), root-equivalent groups, world-writable directories in root's PATH, credentials in readable files, and kernel version for known exploits. Tools like `linpeas` automate this.
 
-# Hands-on Lab
+**9. 🔐 What are Linux capabilities and why do they matter for containers?**
+They split root's privileges into units. Containers run with a reduced set; adding capabilities such as `CAP_SYS_ADMIN` or running `--privileged` greatly increases escape risk.
 
-Run:
-
-```bash
-whoami
-
-id
-
-groups
-
-touch demo.txt
-
-ls -l demo.txt
-
-chmod 600 demo.txt
-
-ls -l demo.txt
-
-chmod 755 demo.txt
-
-ls -l demo.txt
-
-umask
-```
-
-Explore:
-
-```bash
-cat /etc/passwd
-
-sudo cat /etc/shadow
-```
-
-Observe the difference in access permissions.
+**10. 🔐 A file can't be deleted even by root. Why?**
+It's probably immutable (`chattr +i`) — check with `lsattr`. Other causes: a read-only mount, or the file is on an immutable layer (e.g. container image).
 
 ---
 
-# Common Mistakes
+## Summary
 
-* Using `777` on production systems.
-* Running applications as `root`.
-* Storing SSH private keys with open permissions.
-* Ignoring group memberships.
-* Giving unnecessary write permissions.
+- Users and groups are numbers (UID/GID); root is UID 0.
+- Permissions: `r w x` for user, group and others — different meaning on directories.
+- `sudo` should grant the minimum; many "harmless" commands give a root shell.
+- SUID, capabilities, ACLs and root-equivalent groups are where privilege escalation hides.
+- Least privilege: apps run as non-root and can't write to their own code or config.
 
----
-
-# Interview Questions
-
-### What is the difference between a user and a group?
-
-A user is an identity. A group is a collection of users used to simplify permission management.
+**Next:** [05 — Processes](05-Processes.md)
 
 ---
 
-### What does `chmod` do?
+## References
 
-Changes file or directory permissions.
-
----
-
-### What does `chown` do?
-
-Changes file ownership.
-
----
-
-### What is the difference between `644` and `755`?
-
-* **644**: Owner can read/write; group and others can read.
-* **755**: Owner has full access; group and others can read and execute.
-
----
-
-### Why should applications avoid running as root?
-
-Running as root increases the impact of a compromise. Least privilege reduces risk.
-
----
-
-### What is SUID?
-
-A special permission that allows a program to run with the owner's privileges.
-
----
-
-### What is the Sticky Bit?
-
-A directory permission that allows only the file owner (or root) to delete files, even if the directory is writable by everyone.
-
----
-
-### Why is `/etc/shadow` protected?
-
-It contains password hashes and must be accessible only to privileged users.
-
----
-
-# Key Takeaways
-
-* Linux is a multi-user operating system.
-* Every file has an owner, group, and permissions.
-* Understand `r`, `w`, and `x` permissions.
-* Learn numeric permission values.
-* Use `chmod`, `chown`, and `chgrp` confidently.
-* Apply the Principle of Least Privilege.
-* Avoid running applications as `root`.
-* Correct file permissions are fundamental to Linux security.
-
----
-
-# References
-
-* Linux `man chmod`
-* Linux `man chown`
-* Linux `man umask`
-* Linux Filesystem Hierarchy Standard (FHS)
-* https://man7.org/linux/man-pages/
+- `man 5 passwd`, `man 5 shadow`, `man chmod`, `man sudoers`, `man 7 capabilities`, `man acl`, `man chattr`
+- GTFOBins — https://gtfobins.github.io/
+- CIS Benchmarks (Ubuntu Linux) — https://www.cisecurity.org/benchmark/ubuntu_linux
