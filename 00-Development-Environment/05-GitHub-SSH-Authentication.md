@@ -15,6 +15,7 @@ By the end of this chapter, you will be able to:
 - Test SSH authentication.
 - Convert an existing repository from HTTPS to SSH.
 - Push code securely to GitHub.
+- Automate the whole setup with the GitHub CLI (`gh`) and store its token securely.
 - Troubleshoot common authentication problems.
 - Understand Product Security best practices related to SSH authentication.
 
@@ -436,6 +437,165 @@ actually confirms that:
 - Authentication succeeded
 - Your SSH key is valid
 - GitHub recognizes your account
+
+---
+
+# Alternative: Automated Setup with GitHub CLI (`gh`)
+
+The steps above work everywhere and teach you how SSH keys work. The **GitHub CLI** can do the same setup for you: it creates the key, uploads it to GitHub, and configures Git to use SSH.
+
+```text
+gh auth login
+   ├── logs you in through the browser (OAuth)  → stores a gh token
+   ├── generates ~/.ssh/id_ed25519 (optional)   → uploads the public key to GitHub
+   └── sets Git to use SSH for github.com
+```
+
+## Install `gh`
+
+### Ubuntu / Debian — use GitHub's official repository
+
+> ⚠️ **Don't use Ubuntu's own `gh` package on 22.04.** It's version **2.4.0** (from 2022). Versions before **2.24.0** can't use the system keyring, so they save your token in **plain text** in `~/.config/gh/hosts.yml`.
+
+```bash
+sudo mkdir -p -m 755 /etc/apt/keyrings
+wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update && sudo apt install gh
+gh --version
+```
+
+The `signed-by=` part means this key is trusted **only** for GitHub's repository. This is explained in [Linux chapter 08 — Package Management](../01-Linux/08-Package-Management.md).
+
+Make sure a keyring is available, so `gh` can store the token encrypted (desktops usually have one already):
+
+```bash
+sudo apt install gnome-keyring libsecret-tools
+```
+
+### Windows
+
+```powershell
+winget install --id GitHub.cli
+```
+
+The token is stored in Windows Credential Manager.
+
+### macOS
+
+```bash
+brew install gh
+```
+
+The token is stored in the macOS Keychain.
+
+## Log In
+
+```bash
+gh auth login
+```
+
+Answer the prompts:
+
+| Prompt | Choose |
+|---|---|
+| Where do you use GitHub? | **GitHub.com** |
+| Preferred protocol for Git operations? | **SSH** |
+| Upload your SSH public key? | Your existing `~/.ssh/id_ed25519.pub`, or **generate a new key** if you have none |
+| Passphrase for the new key | Recommended — see below |
+| Title for your SSH key | e.g. `Ubuntu laptop` |
+| How would you like to authenticate? | **Login with a web browser** |
+
+Copy the one-time code shown in the terminal, press Enter, and approve it in the browser.
+
+> **Wrong browser opened?** You can open **https://github.com/login/device** in any browser and type the code. To change the browser `gh` uses: `gh config set browser brave-browser` (or set your system default with `xdg-settings set default-web-browser brave-browser.desktop`).
+
+### What is the passphrase?
+
+It encrypts your private key file on disk. If someone copies `~/.ssh/id_ed25519`, it's useless to them without the passphrase. Pressing Enter (no passphrase) is more convenient but less safe. To avoid typing it all the time, load the key into an agent once per session:
+
+```bash
+sudo apt install keychain
+echo 'eval $(keychain --eval --quiet id_ed25519)' >> ~/.bashrc
+```
+
+You can add or change a passphrase later: `ssh-keygen -p -f ~/.ssh/id_ed25519`.
+
+## Verify
+
+```bash
+gh auth status
+ssh -T git@github.com
+```
+
+Expected:
+
+```text
+github.com
+  ✓ Logged in to github.com account <username> (keyring)
+  - Git operations protocol: ssh
+  - Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'
+```
+
+The important word is **(keyring)**. If it shows a file path like `/home/<user>/.config/gh/hosts.yml`, the token is stored in plain text. Upgrade `gh` (see above) and log in again.
+
+Check that the file holds no token:
+
+```bash
+grep -c oauth_token ~/.config/gh/hosts.yml     # should print 0
+```
+
+## Two Credentials, Two Purposes
+
+| Credential | Stored in | Used for |
+|---|---|---|
+| SSH key (`~/.ssh/id_ed25519`) | Your disk, protected by the passphrase | `git clone`, `git pull`, `git push` |
+| gh OAuth token | System keyring (encrypted) | `gh` commands: `gh repo list`, `gh pr create`, `gh issue list` |
+
+## Token Hygiene
+
+**Reduce scopes.** `admin:public_key` was only needed to upload your SSH key. You can drop it:
+
+```bash
+gh auth refresh -r admin:public_key
+```
+
+**Logging out doesn't revoke the token.** `gh auth logout` only deletes the local copy. The token keeps working on GitHub until you revoke it:
+
+```text
+GitHub → Settings → Applications → Authorized OAuth Apps → GitHub CLI → Revoke
+```
+
+Revoke whenever you:
+
+- moved the token from a plain-text file to the keyring
+- lost or sold a laptop
+- think the token may have leaked
+
+Then run `gh auth login` again.
+
+## Common `gh` Messages
+
+| Message | Meaning | Action |
+|---|---|---|
+| `key is already in use` | The SSH key you chose is already on your GitHub account | Harmless — login still worked. Choose **Skip** next time |
+| `(…/hosts.yml)` in `gh auth status` | Token stored in plain text | Install `gh` 2.24+ and a keyring, log out, revoke, log in again |
+| `HTTP 401: Bad credentials` | Token revoked or expired | `gh auth login` |
+| `Permission denied (publickey)` on `git push` | SSH key not loaded or not on GitHub | `ssh-add -l`, `gh ssh-key list`, `ssh -vT git@github.com` |
+
+Useful commands:
+
+```bash
+gh ssh-key list                    # keys on your GitHub account
+gh auth token | wc -c              # confirms a token exists, without printing it
+gh repo clone <owner>/<repo>       # clone using your configured protocol (SSH)
+gh repo list                       # your repositories
+```
+
+> 🔐 Never paste the output of `gh auth token` anywhere. It is a password for your GitHub account.
 
 ---
 
