@@ -1,0 +1,77 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Lint shell scripts
+        run: |
+          mapfile -t scripts < <(git ls-files '*.sh')
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+          shellcheck --version
+          shellcheck -S warning "${scripts[@]}"
+
+  psscriptanalyzer:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Lint PowerShell scripts
+        shell: pwsh
+        run: |
+          $files = git ls-files '*.ps1' '*.psm1' '*.psd1'
+          if (-not $files) {
+            Write-Host 'No PowerShell scripts found.'
+            exit 0
+          }
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+            Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+          }
+          $results = $files | ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error
+          }
+          if ($results) {
+            $results | Format-Table ScriptName, Line, Severity, RuleName, Message -AutoSize -Wrap
+            exit 1
+          }
+          Write-Host "All $(@($files).Count) PowerShell file(s) passed."
+
+  links:
+    name: Internal links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check relative links in Markdown
+        run: |
+          status=0
+          while IFS= read -r file; do
+            dir=$(dirname "$file")
+            while IFS= read -r link; do
+              target=${link%%#*}
+              [ -z "$target" ] && continue
+              if [ ! -e "$dir/$target" ]; then
+                echo "::error file=$file::Broken link: $link"
+                status=1
+              fi
+            done < <(grep -oE '\]\([^)]+\)' "$file" | sed -E 's/^\]\(//; s/\)$//' | grep -vE '^(https?:|mailto:|#)')
+          done < <(git ls-files '*.md')
+          exit $status
